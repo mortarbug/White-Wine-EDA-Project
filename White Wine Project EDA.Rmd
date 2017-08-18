@@ -1,0 +1,736 @@
+---
+title: "White Wine Project EDA"
+author: "Patrick Vo"
+date: "August 5, 2017"
+output: html_document
+---
+
+```{r include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+#Introduction to the Project and the Dataset
+When I was at UC Davis, one of my favorite elective courses was VEN 003--Introduction to Winemaking. To this day, I still remember bits of information about things like malolactic fermentation and acetobacter. Although the class gave me an overview of the winemaking process, VEN 003 skipped over a lot of the fine, quantitative details, as is expected for an introductory class. This dataset seemed like a good way for me to reinforce and build on my domain knowledge. 
+
+I'll start off my reading in the dataset and examining its structure.
+
+```{r}
+wine <- read.csv('wineQualityWhites.csv')
+
+#Load a few libraries, including GGPlot2
+library(ggplot2)
+library(knitr)
+library(dplyr)
+library(gridExtra)
+library(RColorBrewer)
+str(wine)
+```
+
+The dataset is composed of 4898 observations of 13 variables. Each wine has an ID column (given as an integer), then 11 variables representing different aspects of its chemical makeup. Each wine also has a subjective rating of wine quality, which is given as an integer between 1 and 10. Because "X" is just an ID column, I can get rid of it, as it will serve no purpose as far as EDA goes.
+
+```{r}
+#Eliminate the X variable
+wine$x <- NULL
+```
+
+#Univariate Plots and Analysis
+Because all of these variables are numeric, I'll primarily be looking at them with histograms in this section.
+
+The "quality" variable seems interesting to me. I would expect ratings to be normal, but experience with sites like IMDB has shown me that ratings are often skewed or bimodal. 
+
+```{r}
+ggplot(aes(x = as.factor(quality)), data = wine) +
+    geom_bar(fill = I('light blue'), color = 'dark green')
+```
+
+I was right, kinda. It looks like the distribution of ratings is roughly symmetric and peaks at "6." I did notice that there are many more wines that have been rated a "5" than have been rated "7," but that asymmetry drops off as you further out to "4" versus "8."
+
+Now that I've seen the ratings distribution, I want to focus on the other variables. I'll start out by having a look at the summary statistics.
+
+```{r}
+summary(wine)
+```
+
+As I look through the data, I'm noticing a few outliers that I want to look at. I'll start out by looking at the free and total sulfur dioxide concentrations. 
+
+From my class, I recall discussion about sulfur dioxide being used to kill bacteria in wine, preventing them from competing with the yeast. Let's see what they look like. I'll plot these twice; once with a cutoff at the 99th percentile to prevent outliers from distorting the graph and then once with the outliers in to visualize the difference.
+
+```{r}
+#Make a histogram of the total sulfur  with cutoff
+p1<- ggplot(aes(x = total.sulfur.dioxide), data = wine) +
+  geom_histogram(fill = I('light green'), color = 'yellow') + 
+  ggtitle('Total Sulfur Dioxide Concentration with Cutoff') +
+  #Cut off the 99th percentile to prevent distortion
+  xlim(0,quantile(wine$total.sulfur.dioxide, 0.99))
+
+#Make a histogram of the free sulfur concentration with cutoff
+p2 <- ggplot(aes(x = free.sulfur.dioxide), data = wine) +
+  geom_histogram(fill = I('green'), color = 'yellow') + 
+  ggtitle('Free Sulfur Dioxide Concentration with Cutoff') +
+  #Cut off the 00th percentile to prevent distortion
+  xlim(0,quantile(wine$free.sulfur.dioxide, 0.99))
+
+# Make a histogram of total sulfur without cutoff
+p3<-ggplot(aes(x = total.sulfur.dioxide), data = wine) +
+  geom_histogram(fill = I('light green'), color = 'yellow') + 
+  ggtitle('Total Sulfur Dioxide Concentration')
+
+
+#Make a histogram of the free sulfur concentration with cutoff
+p4 <- ggplot(aes(x = free.sulfur.dioxide), data = wine) +
+  geom_histogram(fill = I('green'), color = 'yellow') + 
+  ggtitle('Free Sulfur Dioxide Concentration')
+
+grid.arrange(p1,p2,p3,p4, ncol = 2)
+```
+
+Both the total and free sulfur dioxides have a smooth-ish, unimodal distribution. I found it interesting that the cutoff total sulfur dioxide graph has such an abrupt dropoff at the right hand side of the graph, but the full total sulfur dioxide graph shows that it's just a result of cutting out the top 1%.
+
+In both cases, it looks like maximum is far removed from the others. I'm curious as to the wines that have these chemical characteristics. Is it the same one?
+
+
+```{r}
+#Find the wine where the maximum free sulfur dioxide level is reached
+wine[(wine$free.sulfur.dioxide) == max((wine$free.sulfur.dioxide)),c(1,7,8)]
+```
+
+It is. This sulfur dioxide concentration is actually higher than the legal limit in the US and EU. I won't be able to find the answer in this dataset, but I'd sure like to know who/what made such a sulfuric wine. 
+
+The next group of outliers I noticed all deal with acidity. All three of the acidities (citric acid, fixed acidity, volatile acidity) have maximums that are 2-3 times higher than their third quartiles. 
+
+I'll use the same process I did before--making histograms with and without the 99th percentile.
+
+
+```{r}
+#Make a histogram of citric acid with cutoff
+p1<- ggplot(aes(x = citric.acid), data = wine) +
+  geom_histogram(fill = I('light blue'), color = 'orange') + 
+  ggtitle('Citric Acid w/ Cutoff') +
+  #Cut off the 99th percentile to prevent distortion
+  xlim(0,quantile(wine$citric.acid, 0.99))
+
+#Make a histogram of volatile acidity with cutoff
+p2<-ggplot(aes(x = volatile.acidity), data = wine) +
+  geom_histogram(fill = I('light blue'), color = 'orange') + 
+  ggtitle('Volatile Acidity w/ Cutoff') +
+  #Cut off the 99th percentile to prevent distortion
+  xlim(0,quantile(wine$volatile.acidity, 0.99))
+
+#Make a histogram of volatile acidity with cutoff
+p3<-ggplot(aes(x = fixed.acidity), data = wine) +
+  geom_histogram(fill = I('light blue'), color = 'orange') + 
+  ggtitle('Fixed Acidity w/ Cutoff') +
+  #Cut off the 99th percentile to prevent distortion
+  #Change the limit to more accurately display graph
+  xlim(min(wine$fixed.acidity)-0.5,quantile(wine$fixed.acidity, 0.99))
+
+#Make a histogram of Citric Acid without cutoffs
+p4<- ggplot(aes(x = citric.acid), data = wine) +
+  geom_histogram(fill = I('light blue'), color = 'orange') + 
+  ggtitle('Citric Acid')
+
+#Make a histogram of volatile acidity without cutoffs
+p5 <- ggplot(aes(x = volatile.acidity), data = wine) +
+  geom_histogram(fill = I('light blue'), color = 'orange') + 
+  ggtitle('Volatile Acidity')
+
+#Make a histogram of fixed acidity without cutoffs
+p6 <- ggplot(aes(x = fixed.acidity), data = wine) +
+  geom_histogram(fill = I('light blue'), color = 'orange') + 
+  ggtitle('Fixed Acidity')
+
+#Print out the graphs
+grid.arrange(p1,p2,p3,p4,p5,p6, ncol = 3)
+```
+
+Looking at the cutoff plots, it seems like the distributions are fairly smooth and symmetric with a single peak. They exhibit the kind of shape that you would expect from a normal distribution. 
+As before, it looks like there are a small number of very high outliers. Let's see if they're the same wines.
+
+```{r}
+#Print out the wines with maximum values in any of the 3 categories
+wine[((wine$fixed.acidity) == max(wine$fixed.acidity))|
+       ((wine$citric.acid) == max(wine$citric.acid))|
+       ((wine$volatile.acidity) == max(wine$volatile.acidity)), (1:4)]
+```
+
+It seems like these are three different wines. I found it interesting that the acidities don't really seem to go hand in hand with each other, but a reread of the dataset description shows me that each is the result of a different chemical found within the wine.
+
+The last variable that strikes me as incredible is residual sugar. The minimum residual sugar is 0.6 g/dm^3, the 3rd quartile is 9.9 g/dm^3, and the maximum is a whopping 65.8 g/dm^3. Quite a difference. I'll view the histograms with and without a cutoff.
+
+```{r}
+#Histogram with cutoff
+p1<-ggplot(aes(x = residual.sugar), data = wine)+
+  geom_histogram() +
+  xlim(0,quantile(wine$residual.sugar, 0.99)) 
+
+#Histogram without
+p2<-ggplot(aes(x = residual.sugar), data = wine)+
+  geom_histogram()
+
+grid.arrange(p1,p2,ncol = 2)
+```
+
+I notice that the histogram of residual sugar is right skewed, with the 99th percentile between 17.5 and 20. There is a very large peak and sharp dropoff where in the residual sugar somewhere around 1.0. I found that interesting, so I decided to zoom in a bit more.
+
+```{r}
+#Zoomed in histogram
+ggplot(aes(x = residual.sugar), data = wine)+
+  geom_histogram() +
+  xlim(0,2.5) 
+```
+
+I find it a bit odd that this zoomed in graph should look so symmetric. If this were a right skewed distribution, I would expect a slice of the the left side to not drop off as dramatically. 
+
+Looking at the main graph, I can see that there does in fact seem to be a dropoff. I dismissed as noise earlier, but now I have other suspicions.
+
+I'm gonna look at this relationship more closely. Since the data is right-skewed, I'll try using a log10 transform.
+
+```{r}
+ggplot(aes(x = residual.sugar), data = wine)+
+  geom_histogram(color = 'purple', fill = I('pink')) +
+  scale_x_log10(breaks = c(1.5, 2, 3, 5, 10, 25, 60))
+```
+
+Looking at this graph, I'm reminded of learning about dry and sweet wines in class. In a dry wine, the grapes and fermentation length are adjusted so that little or no sugar remains after. Sweet wines are the opposite and contain quite a bit of sugar after fermentation. I suspect that the 2 peaks of this graph represent dry and sweet wines.
+
+I'm still wondering about that wine with the max residual sugar. I would imagine that critics used to wines with residual sugar at or below 20 g/dm^3 would find it to be cloyingly sweet. Let's see the full record for that wine.
+
+```{r}
+wine[(wine$residual.sugar) == max(wine$residual.sugar),]
+```
+
+Sugar aside, nothing seems incredibly unusual about the wine. Its quality rating is 6, the median and mode of this dataset, so I was wrong about what the judges would think. 
+
+At this point, I've looked at the histograms of what I thought were the strangest outliers. I'll plot out the histograms of the remaining variables, just to see if I'm missing something.
+
+```{r}
+#Make a plot of wine chlorides
+p1<-ggplot(aes(x=chlorides), data = wine) +
+  geom_histogram(color = 'red') +
+    ggtitle('chlorides')
+
+#Make a plot of wine density
+p2<-ggplot(aes(x=density), data = wine) +
+  geom_histogram(color = 'red') + 
+  ggtitle('density')
+
+#Make a plot of wine pH
+p3<-ggplot(aes(x=pH), data = wine) +
+  geom_histogram(color = 'red') + 
+  ggtitle('pH')
+
+#Make a plot of wine sulphate concentration
+p4<-ggplot(aes(x=sulphates), data = wine) +
+  geom_histogram(color = 'red') + 
+  ggtitle('sulphates')
+
+#Make a plot of wine alcohol content
+p5<-ggplot(aes(x=alcohol), data = wine) +
+  geom_histogram(color = 'red') + 
+  ggtitle('alcohol')
+
+grid.arrange(p1,p2,p3,p4,p5, ncol = 2)
+```
+
+ So it looks like both chloride and density have outliers that are distorting their plots. I'm gonna have a closer look at their histograms. I'll cut off chlorides at the 99th percentile, but I know from remaking the plot several times that a more complete picture of the "main". 
+ 
+```{r}
+#Make a plot of wine chlorides with 99th percentile cutoff
+p1<-ggplot(aes(x=chlorides), data = wine) +
+  geom_histogram(color = 'red') + 
+  ggtitle('Chlorides with cutoff') +
+  xlim(0,quantile(wine$chlorides, 0.99))
+
+
+#Make a plot of wine density with cutoffs
+p2<-ggplot(aes(x = density), data = wine) +
+  geom_histogram(color = 'red') + 
+  ggtitle('Density') +
+  xlim(0.98,1.010)
+
+grid.arrange(p1,p2,ncol = 2)
+```
+
+Nothing too unusual here. I see unimodal histograms that rise and fall fairly smoothly. 
+
+The histogram of sulphates interests me too. Near the middle of the histogram, where a peak might be expected, the graph dips for a few bars. I'm gonna zoom in on that region to see if there might be a pattern there. 
+
+```{r}
+#Zoom in on the sulphates graph
+ggplot(aes(x=sulphates), data = wine) +
+  geom_histogram(color = 'green') + 
+  ggtitle('Zoomed in graph of Sulfates') +
+  xlim(0.3, 0.6)
+
+#Zoom in on the sulphates graph. Adjust the binwidth
+ggplot(aes(x=sulphates), data = wine) +
+  geom_histogram(color = 'green', binwidth = 0.02) + 
+  ggtitle('Zoomed in graph of Sulfates') +
+  xlim(0.3, 0.6)
+
+```
+
+
+From the graphs, it seems that the dip might be just be the result of the histogram's bins. Looking at the zoomed-in view, I can see that this area is composed of a smoothish curve punctuated by several high spikes. It's likely that the dip is just a result of seeing several of the lower bars in sucession.
+
+# Univariate Analysis
+### What is the structure of your dataset?
+There are 4898 white wines represented in the dataset. Each wine has an ID variable (X), a subjective quality rating (quality), and 10 different chemical characteristics measured for each wine. Every variable has been stored in a numeric format; ID and quality are both ints and everything else is a double. 
+A few observations that stood out to me:
+  - The distribution of ratings looks approximately normal (but is discrete)
+  - Residual sugar is divided into two peaks, most apparent on a log10 scale.
+  - Acidity, sulfur dioxide, and others have extreme outliers
+  - Most variables have approximately smooth and unimodal distributions
+
+### What is/are the main variables of interest in your dataset?
+The one variable I'm looking forward to looking at is the rating of wine quality. I find it the most interesting, and likely the most valuable to a winemaker as well. I'll definitely be trying to build a predictive model for quality. Aside from that, I plan on looking for patterns throughout the dataset and have no expectations of what I might be getting into. 
+
+### What other features of the dataset do you think will help support your investigation into the feature of interest?
+I'm pretty sure that all the variables of the dataset contribute to the taste of the wine, and I suspect that all will play a role in the final model. If I had to guess at this point which features will be most predictive, I'd guess alcohol and residual sugar.
+
+### Did you create any new variables from existing variables in your dataset?
+Not yet, but later on I plan to make buckets out of the existing variables so that I can color and facet my graphs. 
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+Of the features I investigated, the distribution that I found most unusual was the residual sugar plot. I did not expect the clear bifurcation that I saw when I applied the log10 transform to the x-axis. I also noted that many of the variables had very extreme outliers that occurred well over the values of the other distribution.When plotting it out, I had to omit these values to get a good feeling for the main distribution. 
+
+# Bivariate Plotting
+
+I'll start off looking for relationships between variables by printing out ggpairs plots. Because the ggpairs plot prints out very small on my computer, I'm gonna divide the variables into 2 groups of 4 and 1 group of 5. To ensure that every variable gets pairplotted, I'll plot group A and group B, group B and group C, then group A and group C. 
+
+```{r}
+#Load GGally Library
+library('GGally')
+
+#Set seed for reproducibility
+set.seed(31416)
+
+#Sample from wines
+wine_samp <- wine[sample(1:length(wine$fixed.acidity), 2400), ]
+
+#Declare lists of columns for groups A, B, and C
+groupA <- c("fixed.acidity", "volatile.acidity", "citric.acid", "residual.sugar")
+groupB <- c("chlorides", "free.sulfur.dioxide", "total.sulfur.dioxide", "density")
+groupC <- c("pH", "sulphates", "alcohol", "quality")
+
+#ggpairs group A and group B
+ggpairs(wine_samp, axisLabels = 'internal', columns = c(groupA, groupB),
+  lower = list(continuous = wrap("points", shape = I('.'))),
+  upper = list(combo = wrap("box", outlier.shape = I('.')))) + 
+  theme_gray(base_size = 6)
+
+```
+
+
+```{r}
+#Plot out groups B and C
+ggpairs(wine_samp, axisLabels = 'internal', columns = c(groupB, groupC),
+  lower = list(continuous = wrap("points", shape = I('.'))),
+  upper = list(combo = wrap("box", outlier.shape = I('.')))) + 
+  theme_gray(base_size = 6)
+```
+```{r}
+#Plot out groups A and C
+ggpairs(wine_samp, axisLabels = 'internal', columns = c(groupA, groupC),
+  lower = list(continuous = wrap("points", shape = I('.'))),
+  upper = list(combo = wrap("box", outlier.shape = I('.')))) + 
+  theme_gray(base_size = 6)
+```
+
+I'll also use ggcorr to make a more readable graph that only shows the correlations between each variable.
+```{r}
+ggcorr(wine_samp, label = TRUE)
+```
+
+
+
+
+The most striking thing to me is density. The dataset description says that density depends on "percent alcohol and sugar content." That seems to be true, as the correlations show that  but the data shows that density correlates well with a few other chemical characteristics as well. This makes sense, as all the chemicals dissolved in a wine should affect its density. 
+
+While I was looking at sulfur dioxide, I did notice that the correlation between free and total sulfur dioxide was a lot less than I expected it to be. While 0.63 is nothing to sneeze at, it's a far from the 1.0 correlation that I was expecting. I'm gonna look at the scatterplot here in more detail. Both variables contain extreme outliers, so my scatterplot will have 99% cutoffs. 
+
+```{r}
+#Make a plot of the total vs free sulfur dioxide 
+ggplot(aes(x = free.sulfur.dioxide, y = total.sulfur.dioxide),
+             data = wine) +
+  #Prevent overplotting by adjusting alpha
+  geom_point(color = 'blue', alpha = 1/20) +
+  ggtitle('Total vs Free Sulfur Dioxide') +
+  xlim(0, quantile(wine$free.sulfur.dioxide, 0.99)) +
+  ylim(0, quantile(wine$total.sulfur.dioxide, 0.99))
+```
+
+As I look through the graph, I notice that the darkest points are concentrated lower in the graph, while the lighter ones tend to be up higher, suggesting that right-skewness.  I want to overlay a linear model with CI's over the plot, as well as a median line. 
+
+```{r}
+# Plot a scatterplot of total vs free SO2, with median line
+ggplot(aes(x = free.sulfur.dioxide, y = total.sulfur.dioxide),
+             data = wine) +
+  #Prevent overplotting by adjusting alpha
+  geom_point(color = 'blue', alpha = 1/20) +
+  #Plot linear model
+  geom_smooth(method = 'lm', color = 'red') +
+  #Plot median line
+  geom_line(stat = 'summary', fun.y = 'median', color = 'purple') +
+  ggtitle('Total vs Free Sulfur Dioxide') +
+  xlim(0, quantile(wine$free.sulfur.dioxide, 0.99)) +
+  ylim(0, quantile(wine$total.sulfur.dioxide, 0.99))
+```
+
+Overall, it looks like there is an increasing relationship between free and total sulfur dioxide. The linear model seems to fit the graph fairly well, but does not explain all the variation the in the relationship. This is something I can explore in the multivariate plotting part of this project. 
+
+As I look through the ggpairs plots, I did notice a pattern I didn't expect between alchol and quality. Alcohol and quality have a correlation of 0.437, suggesting that higher alcohol content is associated with higher quality. I'll make a graph of that relationship and calculate the strength of the relationship as well. 
+
+```{r}
+#Make a scatterplot of quality vs alcohol without jitter points, with smoother
+ggplot(aes(x = alcohol, y = quality), data = wine) +
+  geom_point(color = 'purple', alpha = 1/20) +
+  geom_smooth(method = 'lm', color = 'red')
+```
+
+```{r}
+#Make a scatterplot of quality vs alcohol with jitter points
+ggplot(aes(x = alcohol, y = quality), data = wine) +
+  geom_point(position = 'jitter',alpha = 1/10, color = 'purple') +
+  geom_smooth(method = 'lm', color = 'red')
+```
+
+```{r}
+with(wine,cor.test(alcohol,quality))
+```
+
+Looking at the graphs, it seems that the linear model can predict the graph to a limited extent. Regardless, there is an increasing relationship between alcohol and quality rating. I'll try to draw histograms of alcohol content facetted by rating to see if I can learn anythin else. 
+
+```{r}
+ggplot(aes(x = alcohol), data = wine) +
+  geom_histogram(color = 'red') +
+  facet_wrap(~wine$quality)
+```
+
+From these histograms, I can see that the majority of wines were rated in the 5,6, or 7 range. I also noticed that the wines rated 4,5, or 6 all had a right skewed distributions for alcohol content, while the wines rated 7 and 8 had slightly left-skewed distributions.  
+I know from class that high-quality grapes grown in favorable conditions generally build up more sugar prior to harvesting. Perhaps this leads to the difference in rating.
+
+The other batch of significant relationships I took note of was between alcohol and chlorides, alcohol and total sulfur dioxide, alcohol and free sulfur dioxide, and alcohol and residual sugar. I actually don't think they're all that surprising, but I do think it's worth taking a look. I'm including both a smoother and a linear fit model with the graphs.
+
+```{r}
+# Plot of chlorides vs alcohol
+p1<-ggplot(aes(x = chlorides, y = alcohol), data = wine) +
+  geom_point(color = 'gold', alpha = 1/10) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', color = 'red') +
+  ggtitle('Chloride vs Alcohol') +
+  scale_x_log10()
+
+#Plot of total SO2 vs alcohol
+p2<- ggplot(aes(x = total.sulfur.dioxide, y = alcohol), data = wine) +
+  geom_point(color = 'blue', alpha = 1/10) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', color = 'red') +
+  ggtitle('Total SO2 vs Alcohol')  +
+  scale_x_log10()
+
+#Plot of free SO2 vs alcohol
+p3<-ggplot(aes(x = free.sulfur.dioxide, y = alcohol), data = wine) +
+  geom_point(color = 'green', alpha = 1/10) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', color = 'red') +
+  ggtitle('Free SO2 vs Alcohol')  +
+  scale_x_log10()
+
+#Plot of residual sugar vs alcohol
+p4<- ggplot(aes(y =residual.sugar , x = alcohol), data = wine) +
+  geom_point(color = 'pink', alpha = 1/10) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', color = 'red') +
+  ggtitle('Alcohol vs Residual Sugar')  +
+  scale_y_log10()
+
+grid.arrange(p1,p2,p3,p4, ncol = 2)
+
+```
+
+I have hypotheses as to why we're seeing each of these relationships.
+
+When the dataset measures chlorides, what they're actually measuring is the sodium chloride content of the wine, which likely reflects the amount of sodium chloride in the grapes (I'm not aware of any procedure where salt is added to wine by a winery). The grapes in turn probably got their salt from being grown in a poorer-quality soil with a high salt content. Grapes grown in salty soil will develop relatively less sugar. This means less sugar is available to be turned into alcohol. 
+
+One of the techniques we learned about in class was the use of sulfur dioxide. Wineries add sulfur to their wine because it inhibits bacterial growth, leading to less spoilage and less competition with the yeast. However, the sulfur dioxide also inhibits yeast, especially at higher concentrations.  
+
+Residual sugar is the sugar remaining after fermentation. During fermentation, yeast will convert sugars into alcohol until the alcohol content rises high enough to kill the yeast. However, environmental conditions (high concentrations of toxic chemicals, competition from microbes, etc...) can result in a stuck fermentation, when most but not all of the readily available sugar gets converted. Wines suffering from stuck fermentations will have more residual sugar and a lower alcohol content. 
+
+I thought to myself, "If all of these relationships can be explained by errata during the fermentation, then did they have any effect on the quality rating of the wine?" I went back to look at the plot matrix and each variable indeed has a weak negative association with quality. It will be interesting to explore this during the multivariate plotting portion.
+
+# Bivariate Analysis
+###Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+Interestingly enough, the quality rating correlated most strongly with the alcohol content of the wine.I suspect that this correlation may be confounded with other aspects of the dataset as well, and I'll be following up on that later. 
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+Some of the other interesting relationships I found:
+  - Chloride, Total Sulfur Dioxide, Free Sulfur Dioxide, and Residual Sugar correlate negatively with alcohol
+  - Total sulfur dioxide and free sulfur dioxide are correlated with each other
+  - Density is correlated with many more things than the dataset's description suggests
+  
+### What was the strongest relationship you found?
+The single strongest correlation I noticed was between free sulfur dioxide and total sulfur dioxide. This doesn't surprise me, as both quantities should be directly proportional to the amount of sulfur dioxide added to the wine during production. 
+
+
+
+# Multivariate plotting
+Because the relationships with the alcohol content are still fresh in my mind, I'll start off by looking at these first. I'll color each plot by quality, which I'll convert into a factor. 
+
+```{r}
+
+# Plot of chlorides vs alcohol
+p1<-ggplot(aes(x = chlorides, y = alcohol), data = wine) +
+  geom_point(aes(color = as.factor(quality)), alpha = 1/3) +  
+  scale_colour_brewer(type = "div", palette = 'Spectral',
+                      guide = guide_legend(title = "Quality")) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', color = 'red') +
+  ggtitle('Chloride vs Alcohol') +
+  scale_x_log10(breaks = c(0.01, 0.03, 0.05, 0.10))
+
+#Plot of total SO2 vs alcohol
+p2<- ggplot(aes(x = total.sulfur.dioxide, y = alcohol), data = wine) +
+    geom_point(aes(color = as.factor(quality)), alpha = 1/3) +  
+  scale_colour_brewer(type = "div", palette = 'Spectral',
+                      guide = guide_legend(title = "Quality")) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', color = 'red') +
+  ggtitle('Total SO2 vs Alcohol')  +
+  scale_x_log10(breaks = c(10, 40, 100, 180))
+
+#Plot of free SO2 vs alcohol
+p3<-ggplot(aes(x = free.sulfur.dioxide, y = alcohol), data = wine) +
+    geom_point(aes(color = as.factor(quality)), alpha = 1/3) +  
+  scale_colour_brewer(type = "div", palette = 'Spectral',
+                      guide = guide_legend(title = "Quality")) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', color = 'red') +
+  ggtitle('Free SO2 vs Alcohol')  +
+  scale_x_log10(breaks = c(10,20,  60, 100))
+
+#Plot of residual sugar vs alcohol
+p4<- ggplot(aes(y =residual.sugar , x = alcohol), data = wine) +
+    geom_point(aes(color = as.factor(quality)), alpha = 1/3) +  
+  scale_colour_brewer(type = "div", palette = 'Spectral',
+                      guide = guide_legend(title = "Quality")) +
+  geom_smooth() +
+  geom_smooth(method = 'lm', color = 'red') +
+  ggtitle('Alcohol vs Residual Sugar')  +
+  scale_y_log10(breaks = c())
+  
+grid.arrange(p1,p2,p3,p4, ncol = 2)
+```
+
+Although there is a lot of variation in the positioning of quality ratings, all of the graphs seem to have different areas where ratings tend to be concentrated. For chloride, total SO2, and free SO2, I noticed that the yellow and green ratings--6,7,and 8 on the quality scale--occur in a small portion of the total ranges. I want to visualize the relationship of alcohol and quality for different levels of chloride, to see if there might be an interaction. To do this, I'll cut the chloride levels into buckets based on the quartiles. I'll make both scatterplots and boxplots to visualize my data.  
+
+```{r}
+#Make buckets of chloride concentration
+wine$cl.bucket<- cut(wine$chlorides, c(0,
+                     quantile(wine$chlorides,0.25),
+                      quantile(wine$chlorides,0.50),
+                      quantile(wine$chlorides,0.75),
+                      max(wine$chlorides)))
+
+#Make scatterplots of quality vs alcohol, colored by chlorides
+ggplot(aes(x = alcohol, y = quality), data = wine) +
+  geom_point(color = 'blue', alpha = 1/15) +
+  facet_wrap(~wine$cl.bucket)
+```
+```{r}
+ggplot(aes(y = alcohol, x = as.factor(quality)), data = wine) +
+  geom_boxplot() +
+  facet_wrap(~wine$cl.bucket) +
+  coord_flip()
+```
+
+
+
+
+
+There indeed appears to be an interaction. Notice that as the chloride concentration increases, the scatterplots of quality vs alcohol seem to almost shrink down and to the left. Similarly, the pattern of boxplots seems to get pushed to the left. This shows that while alcohol and quality are related, that relationship changes across different levels of chloride concentration. For example, in the (0,0.036) bucket, notice that most of the wines rated an 8 have alcohol concentrations in the 11-14 range. By the time we reach the (0.05, 0.346) bucket, the majority of wines rated an 8 are in the 8-9 range. 
+
+I noticed earlier that density seemed to correlate with many of the chemicals measured in the dataset. I know from the dataset description that density at least varies with alcohol and residual sugar. I'll visualize that relationship by cutting density into 12 buckets, then plotting alcohol vs residual sugar colored by density. I'll also include a smoother to help visualize the relationship. 
+
+```{r}
+#Cut the density according to a sequence of 12 equally spaced buckets
+wine$density.buckets <- cut(wine$density, seq(min(wine$density),
+                                              quantile(wine$density, 0.99),
+                                              length.out = 9))
+
+#Plot the scatterplot, leaving out the outlier
+ggplot(aes(x = residual.sugar, y = alcohol), data = wine) +
+  geom_point(aes(color = density.buckets)) +
+  scale_color_brewer(type = 'seq', palette = 'Oranges') +
+  geom_smooth(color = 'blue') +
+  xlim (0, quantile(wine$residual.sugar, 0.99))
+```
+
+The points on the plot form clearly separated clusters that get progressively darker as you go down and to the right. It seems that increased density is associated with low concentrations of alcohol and high concentrations of residual sugar. 
+Now I want to try something. I noticed that free sulfur dioxide is also pretty strongly correlated (r = 0.51) with density. I suspect that free sulfur dioxide interacts with the relationship of residual sugar and alcohol.  I'll cut free sulfur dioxide into buckets as well and facet the graph by the different buckets. This will allow me to see if the relationship remains consistent across the different buckets. 
+
+```{r}
+#Cut sulfur dioxide into 5 buckets. Ignore the top 1% of values
+wine$fSO2.bucket <- cut(wine$free.sulfur.dioxide, seq(
+  min(wine$free.sulfur.dioxide),
+  quantile(wine$free.sulfur.dioxide,0.99),
+  length.out = 5
+))
+
+#Plot the same plot as above, faceted by free sulfur dioxide buckets
+ggplot(aes(x = residual.sugar, y = alcohol), data = wine) +
+  geom_point(aes(color = density.buckets)) +
+  scale_color_brewer(type = 'seq', palette = 'Oranges') +
+  geom_smooth(color = 'blue') +
+  xlim (0, quantile(wine$residual.sugar, 0.99)) + 
+  facet_wrap(~fSO2.bucket) + 
+  ggtitle('Alcohol vs Residual Sugar, colored by Density',
+          subtitle = 'by buckets of Free Sulfur Dioxide concentration') +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+
+```
+The positioning of the colored groups of dots seems to stay the same throughout. Even the smoother looks the same from plot to plot. 
+
+I don't see a huge difference in the relationship between density, residual sugar, and alcohol at different quintiles of sulfur dioxide. It seems like I was wrong, and that the relationship stays consistent throughout. 
+
+The last relationship I want to see, and the one I was truly looking forward to when choosing the dataset, is the relationship of everything with quality. I'll make a linear model to predict the quality of a wine based upon its chemical characteristics. 
+
+```{r}
+#Load in the memisc library
+library(memisc)
+
+# Remove one wine from the dataset
+wine_fixed = wine[c(1:840, 842:4898),]
+
+#Make and update linear model
+m1 <- lm(quality~alcohol, data = wine_fixed)
+m2 <- update(m1, ~ . + fixed.acidity)
+m3 <- update(m2, ~ . + volatile.acidity)
+m4 <- update(m3, ~ . + citric.acid)
+m5 <- update(m4, ~ . + residual.sugar)
+m6 <- update(m5, ~ . + chlorides)
+m7 <- update(m6, ~ . + free.sulfur.dioxide)
+m8 <- update(m7, ~ . + total.sulfur.dioxide)
+m9 <- update(m8, ~ . + density)
+m10 <- update(m9, ~ . + pH)
+m11 <- update(m10, ~ . + sulphates)
+mtable(m7, m8, m9, m10, m11, sdigits = 2)
+```
+
+The low R-squared value of 0.28 suggests that this model isn't anything to write home about. Let's see how well it predicts wine 841, the wine I removed at the start.
+
+```{r}
+test_wine <- wine[841,]
+modelEstimate = predict(m11, newdata = test_wine,
+                        interval="prediction", level = .95)
+modelEstimate
+test_wine$quality
+```
+Not too bad, but I noticed that the prediction interval for this wine is pretty relative to the range of possible values-- 1 to 10. 
+
+# Multivariate Analysis
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+Earlier in the project, I found out that alcohol and quality were positively correlated. Aside from alcohol, I noticed that the strongest relationship quality had was with chlorides. I made scatterplots of alcohol vs quality across different levels of chlorides and found that the relationship of alcohol and quality was most pronounced at lower levels of chlorides.
+
+
+### Were there any interesting or surprising interactions between features?
+When I went to plot out the relationship between residual sugar and alcohol across different levels of sulfur dioxide, I noticed that the relationship statyed the same, suggesting that there was little if any direct interaction between free sulfur dioxide and the residual sugar-alcohol relationship. 
+
+### Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+I also ended up trying to make a linear model of the quality rating. I found that the model was unable to predict the quality of a wine very well, and the results of the test run suggests that the model has a large amount of variance with its predictions.
+
+
+# Final Plots and Summary
+For this section, I decided to pick one plot from each of the three preceding plotting sections. 
+Up first is my univariate plot.
+
+```{r}
+ggplot(aes(x = residual.sugar), data = wine)+
+  geom_histogram(color = 'purple', fill = I('pink')) +
+  scale_x_log10(breaks = c(1.5, 2, 3, 5, 10, 25, 60)) +
+  ggtitle('Residual Sugar Concentration (Grams per Liter)') +
+  xlab ('Residual Sugar (log10 g/l)') +
+  ylab ('Count')
+```
+
+I decided to include this plot because it shows a pattern that I was not consciously looking for, but came across by accident. I was looking over an earlier residual sugar plot that I had made, and it was only by chance that I noticed that it noticed an unusual dip in one of my plots. I decided to throw a transform at it and ended up with this plot, showing a clear bifurcation that I suspect represents the gap between dry and sweet wines.  
+
+
+This next plot is from the bivariate plotting section. It shows the relationship between total and free sulfur dioxide.
+
+```{r}
+#Make a plot of the total vs free sulfur dioxide 
+ggplot(aes(x = free.sulfur.dioxide, y = total.sulfur.dioxide),
+             data = wine) +
+  #Prevent overplotting by adjusting alpha
+  geom_point(color = 'blue', alpha = 1/20) +
+  ggtitle('Total vs Free Sulfur Dioxide') +
+  xlim(0, quantile(wine$free.sulfur.dioxide, 0.99)) +
+  ylim(0, quantile(wine$total.sulfur.dioxide, 0.99)) +
+  ggtitle('Concentration of Total vs Free Sulfur Dioxide') +
+  xlab('Free Sulfur Dioxide (g/dm^3)') +
+  ylab('Total Sulfur Dioxide (g/dm^3)')
+```
+
+I chose this plot because I like how it demonstrates a clear relationship between two variables that should be related. When I see this plot, I think back to freshman chemistry, where we learned that many solutes dissolve incompletely into solvents--the resulting solution contains bound and free-floating solute. I suspect that relationship is at play here.
+
+Finally, the multivariate plot I really liked involves the interplay of alcohol, quality, and chloride concentration. I suspected that the relationship of alcohol and quality would change at different levels of chloride, so I cut the chloride into buckets and plotted out alcohol vs quality for each bucket.
+
+```{r}
+ggplot(aes(y = alcohol, x = as.factor(quality)), data = wine) +
+  facet_wrap(~wine$cl.bucket, labeller = 'label_both') +
+  ggtitle('Wine vs Alcohol For Different Chloride Concentrations',
+          subtitle = 'Sodium Chloride -g/dm^3') +
+  xlab('Alcohol Content (% Alcohol)') +
+  ylab('Quality') +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+  geom_boxplot() +
+  facet_wrap(~wine$cl.bucket) +
+  coord_flip()
+```
+
+I chose this plot because it was a pattern I came across based purely on the data. I hypothesized that the Quality-Alcohol relationship might be different for different values of chloride concentration, but it took me quite a long time to decide how to design the graph, and I was amazed at the pattern that it showed. 
+
+# Reflection
+Going into this project, I believed that domain knowledge would be the key to successfully finding patterns. That turned out not to be the case at all. Every pattern I identified was the result of looking at the data and noticing unusual things. My prior education only came into play during the post-plotting discussion, as I reviewed my old notes and made guesses as to why we might see certain occurrences. 
+
+One of the things that I struggled with was maintaining a logical flow during the exploration. I'd make a plot, go back to reference another plot, then come back with a bunch of different ideas for a bunch of different variables. The other major issue I had was trying to designing the plots. As I made plots, I'd be thinking "Should this be a summary statistic? Is this the best design for this? If I make a different version of this plot, will it convey any information more succinctly?"
+
+I think that further analysis of this dataset will involve looking at different and deeper multivariate analyses. For example, I examined the relationship of alcohol, sugar, density, and free sulfur dioxide. A more thorough analysis could take into account the effects of every variable on density. One suggestion might be to use the linear modeller. Speaking of linear modelling, my linear modeller did not turn out to be a very good predictor of quality. I suspect that the quality should be treated more like a factor than as a numeric, and I believe that a classification algorithm might have better luck. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
